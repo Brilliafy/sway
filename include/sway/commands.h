@@ -195,6 +195,7 @@ sway_cmd cmd_unbindcode;
 sway_cmd cmd_unbindswitch;
 sway_cmd cmd_unbindgesture;
 sway_cmd cmd_unbindsym;
+sway_cmd cmd_unlock;
 sway_cmd cmd_unmark;
 sway_cmd cmd_urgent;
 sway_cmd cmd_workspace;

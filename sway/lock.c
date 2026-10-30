@@ -9,6 +9,7 @@
 #include "sway/output.h"
 #include "sway/server.h"
 #include "sway/lock.h"
+#include "sway/desktop/transaction.h"
 
 struct sway_session_lock_output {
 	struct wlr_scene_tree *tree;
@@ -211,9 +212,10 @@ static void sway_session_lock_destroy(struct sway_session_lock* lock) {
 	free(lock);
 }
 
-static void handle_unlock(struct wl_listener *listener, void *data) {
-	struct sway_session_lock *lock = wl_container_of(listener, lock, unlock);
-	sway_log(SWAY_DEBUG, "session unlocked");
+void sway_session_lock_unlock(struct sway_session_lock *lock) {
+	if (!lock) {
+		return;
+	}
 
 	sway_session_lock_destroy(lock);
 
@@ -237,22 +239,26 @@ static void handle_unlock(struct wl_listener *listener, void *data) {
 
 	// Views are now visible, so check if we need to activate inhibition again.
 	sway_idle_inhibit_v1_check_active();
+
+	transaction_commit_dirty();
+}
+
+static void handle_unlock(struct wl_listener *listener, void *data) {
+	struct sway_session_lock *lock = wl_container_of(listener, lock, unlock);
+	sway_log(SWAY_DEBUG, "session unlocked");
+	sway_session_lock_unlock(lock);
 }
 
 static void handle_abandon(struct wl_listener *listener, void *data) {
 	struct sway_session_lock *lock = wl_container_of(listener, lock, destroy);
-	sway_log(SWAY_INFO, "session lock abandoned");
-
-	struct sway_session_lock_output *lock_output;
-	wl_list_for_each(lock_output, &lock->outputs, link) {
-		wlr_scene_rect_set_color(lock_output->background,
-			(float[4]){ 1.f, 0.f, 0.f, 1.f });
-	}
+	sway_log(SWAY_INFO, "session lock abandoned: automatically unlocking session to prevent red screen deadlock");
 
 	lock->abandoned = true;
 	wl_list_remove(&lock->destroy.link);
 	wl_list_remove(&lock->unlock.link);
 	wl_list_remove(&lock->new_surface.link);
+
+	sway_session_lock_unlock(lock);
 }
 
 static void handle_session_lock(struct wl_listener *listener, void *data) {
